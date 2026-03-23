@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RK 100kg">
+<meta name="theme-color" content="#0B0A0F">
+<title>RK's Road to 100kg</title>
+
+<!-- App icon as inline SVG data URI -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0A0F'/%3E%3Crect width='100' height='100' rx='22' fill='url(%23g)'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23FF6B00'/%3E%3Cstop offset='1' stop-color='%23C44400'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' font-family='system-ui'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: #0B0A0F; overflow: hidden; }
+  #app { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  ::-webkit-scrollbar { display: none; }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  button { cursor: pointer; border: none; background: none; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+</style>
+
+<!-- React + Babel via CDN -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// ── PERSIST TO LOCALSTORAGE ─────────────────────────────────────────────────
+function usePersist(key, init) {
+  const [val, setVal] = useState(() => {
+    try {
+      const s = localStorage.getItem(key);
+      return s ? JSON.parse(s) : (typeof init === 'function' ? init() : init);
+    } catch { return typeof init === 'function' ? init() : init; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+  }, [key, val]);
+  return [val, setVal];
+}
+
+const ff   = "'Outfit', sans-serif";
+const mono = "'JetBrains Mono', monospace";
+
+const C = {
+  bg:"#0B0A0F", surface:"#100F16", raised:"#151421", border:"#1C1B28", borderSub:"#131220",
+  orange:"#FF6B00", green:"#22C55E", gold:"#C9943A", goldDim:"#C9943A15", goldBorder:"#C9943A40",
+  push:"#FF6B00", upper:"#E85D00", pull:"#4A90D9", lower:"#2E7AC4", legs:"#7CB84A",
+  rest:"#2A2A38", slate1:"#E2E0F0", slate2:"#8A88A0", slate3:"#4A4860", slate4:"#252438", red:"#EF4444",
+};
+
+const DAY_COLOR = { Mon:C.push, Tue:C.pull, Wed:C.legs, Thu:C.rest, Fri:C.upper, Sat:C.lower, Sun:C.rest };
+
+function calcMacros(w) {
+  const bmr = 10*w + 6.25*193 - 5*23 + 5;
+  const tdee = Math.round(bmr * 1.55);
+  const deficit = 650;
+  const calories = Math.max(tdee - deficit, 1800);
+  const protein = Math.round(w * 1.8);
+  const fats = Math.round(calories * 0.25 / 9);
+  const carbs = Math.round((calories - protein*4 - fats*9) / 4);
+  return { tdee, calories, protein, fats, carbs, deficit };
+}
+
+const WORKOUT_DAYS = [
+  { day:"Mon", label:"PUSH", title:"Push — Chest · Shoulders · Triceps",
+    warmup:"Dips — 2–3 sets to failure (warm-up only) · Arm circles, band pull-aparts 2 min",
+    exercises:[
+      { name:"Bench Press (Barbell)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Incline Bench Press (Dumbbell)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Shoulder Press (Dumbbell)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Seated Chest Flys (Cable)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Lateral Raise (Cable/Dumbbell)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Tricep Pushdown (Rope)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Overhead Tricep Extension (Cable)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+    ], finisher:"Incline Treadmill Walk — 30 min · 6–8% · 5.5–6.5 km/h · HR 118–138 bpm" },
+  { day:"Tue", label:"PULL", title:"Pull — Back · Rear Delts · Biceps",
+    warmup:"Pull-ups — 2–3 sets to failure (warm-up only) · Band pull-aparts, dead hangs 2 min",
+    exercises:[
+      { name:"Lat Pulldown (Wide Grip)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Chest-Supported Row (Dumbbell)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Seated Cable Row (Close Grip)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Face Pulls (Cable)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Single-Arm Row (Dumbbell)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Bicep Curl (EZ-Bar)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Hammer Curl (Dumbbell)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+    ], finisher:"Incline Treadmill Walk — 30 min · 6–8% · 5.5–6.5 km/h · HR 118–138 bpm" },
+  { day:"Wed", label:"LEGS", title:"Legs — Quads · Hamstrings · Glutes · Calves",
+    warmup:"Leg swings, hip circles, BW squats 3 min · Foam roll quads & hamstrings 2 min",
+    exercises:[
+      { name:"Squat (Smith Machine)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Romanian Deadlift (Barbell)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Seated Leg Curl", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Leg Extension", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Hip Adduction (Machine)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Hip Abduction (Machine)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Calf Raise (Standing)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+    ], finisher:"Incline Treadmill Walk — 30 min · 6–8% · 5.5–6.5 km/h · HR 118–138 bpm" },
+  { day:"Thu", label:"REST", title:"Full Rest Day", warmup:null, exercises:[], finisher:null,
+    restNote:"Complete rest. 8,000–10,000 steps of light walking encouraged. Foam roll / stretch 15 min." },
+  { day:"Fri", label:"UPPER", title:"Upper — Chest · Back · Shoulders · Arms",
+    warmup:"Band pull-aparts, shoulder rotations 2 min · Light incline warm-up 1×15 (empty bar)",
+    exercises:[
+      { name:"Bench Press (Dumbbell)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Chest-Supported Row (Machine)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Arnold Press (Dumbbell)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Lat Pulldown (Neutral Grip)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Lateral Raise (Cable)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Incline Curl (Dumbbell)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Close-Grip Bench Press (Barbell)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+    ], finisher:"Incline Treadmill Walk — 30 min · 6–8% · 5.5–6.5 km/h · HR 118–138 bpm" },
+  { day:"Sat", label:"LOWER", title:"Lower — Hamstrings · Glutes · Quads · Calves",
+    warmup:"Banded glute bridges 2×15 · Hip 90/90 stretches 1 min/side · BW Romanian deadlift 1×10",
+    exercises:[
+      { name:"Deadlift (Trap Bar)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Bulgarian Split Squat (Dumbbell)", sets:[{reps:"6-8 each"},{reps:"6-8 each"}] },
+      { name:"Hip Thrust (Barbell)", sets:[{reps:"6-8"},{reps:"6-8"}] },
+      { name:"Hack Squat / Goblet Squat", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Leg Curl (Machine)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Adductor (Machine)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+      { name:"Calf Raise (Seated)", sets:[{reps:"8-12"},{reps:"8-12"},{reps:"8-12"}] },
+    ], finisher:"Incline Treadmill Walk — 30 min · 6–8% · 5.5–6.5 km/h · HR 118–138 bpm" },
+  { day:"Sun", label:"REST", title:"Rest — Meal Prep Day", warmup:null, exercises:[], finisher:null,
+    restNote:"Complete rest. Batch cook rice, chicken and oats for the week. Foam roll 15 min." },
+];
+
+const MEAL_TEMPLATES = [
+  { day:"Mon", gymDay:true, meals:[
+    {time:"12:00 pm",label:"BREAK FAST",name:"Berry Protein Smoothie",desc:"210ml Arla LF milk · 136g Fage 0% yogurt · 28g Quaker oats · 30g PER4M whey (cookie dough) · 100g frozen berries · 1 tsp honey · ½ tsp cinnamon. Blend 45s.",pKcal:430,pPro:42,highlight:false},
+    {time:"3:00 pm",label:"LUNCH",name:"Garlic Herb Chicken & Rice",desc:"200g chicken breast in garlic, lemon & herbs. Pan-fry 6 min/side. 150g rice + steamed green beans.",pKcal:580,pPro:48,highlight:false},
+    {time:"5:30 pm",label:"SNACK",name:"Greek Yogurt + Fruit + Honey",desc:"150g LF Greek yogurt + 1 tbsp honey + grapes, strawberries or pineapple.",pKcal:230,pPro:14,highlight:false},
+    {time:"7:00 pm",label:"PRE-WORKOUT ★",name:"Lean Beef Bolognese Pasta",desc:"200g lean beef mince with passata, onion, garlic & herbs. Simmer 15 min. Serve on 160g pasta.",pKcal:660,pPro:46,highlight:true},
+    {time:"7:45 pm",label:"PRE-WO SNACK",name:"Protein Shake + Crackers or Fruit",desc:"1 scoop whey + 200ml LF milk + crackers or fruit. Finish by 7:55 pm.",pKcal:270,pPro:28,highlight:false},
+    {time:"~12:30 am",label:"POST-WORKOUT ★",name:"Protein Shake + Oats",desc:"1 scoop whey + 300ml LF milk + 50g oats. FAST EXCEPTION — critical for recovery.",pKcal:380,pPro:35,highlight:true},
+  ]},
+  { day:"Tue", gymDay:true, meals:[
+    {time:"12:00 pm",label:"BREAK FAST",name:"Berry Protein Smoothie",desc:"210ml Arla LF milk · 136g Fage 0% yogurt · 28g Quaker oats · 30g PER4M whey · 100g frozen berries · 1 tsp honey · ½ tsp cinnamon. Blend 45s.",pKcal:430,pPro:42,highlight:false},
+    {time:"3:00 pm",label:"LUNCH",name:"Tuna & Sweetcorn Jacket Potato",desc:"2 tins tuna + sweetcorn + 1 tbsp light mayo in a 250g baked jacket potato. Steamed broccoli.",pKcal:560,pPro:52,highlight:false},
+    {time:"5:30 pm",label:"SNACK",name:"Greek Yogurt + Fruit + Honey",desc:"150g LF Greek yogurt + 1 tbsp honey + grapes, strawberries or pineapple.",pKcal:230,pPro:14,highlight:false},
+    {time:"7:00 pm",label:"PRE-WORKOUT ★",name:"Teriyaki Chicken Rice Bowl",desc:"200g chicken in teriyaki sauce (soy, honey, garlic, ginger) with peppers & snap peas over 160g rice.",pKcal:650,pPro:46,highlight:true},
+    {time:"7:45 pm",label:"PRE-WO SNACK",name:"Protein Shake + Crackers or Fruit",desc:"1 scoop whey + 200ml LF milk + crackers or fruit. Finish by 7:55 pm.",pKcal:270,pPro:28,highlight:false},
+    {time:"~12:30 am",label:"POST-WORKOUT ★",name:"Protein Shake + Oats",desc:"1 scoop whey + 300ml LF milk + 50g oats. Fast exception.",pKcal:380,pPro:35,highlight:true},
+  ]},
+  { day:"Wed", gymDay:true, meals:[
+    {time:"12:00 pm",label:"BREAK FAST",name:"Berry Protein Smoothie",desc:"210ml Arla LF milk · 136g Fage 0% yogurt · 28g Quaker oats · 30g PER4M whey · 100g frozen berries · 1 tsp honey · ½ tsp cinnamon. Blend 45s.",pKcal:430,pPro:42,highlight:false},
+    {time:"3:00 pm",label:"LUNCH",name:"Chicken Caesar Wrap",desc:"200g grilled chicken with garlic & paprika in 3 large wraps with romaine and Caesar dressing.",pKcal:570,pPro:46,highlight:false},
+    {time:"5:30 pm",label:"SNACK",name:"Greek Yogurt + Fruit + Honey",desc:"150g LF Greek yogurt + 1 tbsp honey + grapes, strawberries or pineapple.",pKcal:230,pPro:14,highlight:false},
+    {time:"7:00 pm",label:"PRE-WORKOUT ★",name:"Chicken & Sweet Potato Bake",desc:"200g chicken + 300g sweet potato with garlic, rosemary, paprika, olive oil. Roast 200°C 35–40 min.",pKcal:680,pPro:48,highlight:true},
+    {time:"7:45 pm",label:"PRE-WO SNACK",name:"Protein Shake + Crackers or Fruit",desc:"1 scoop whey + 200ml LF milk + crackers or fruit. Finish by 7:55 pm.",pKcal:270,pPro:28,highlight:false},
+    {time:"~12:30 am",label:"POST-WORKOUT ★",name:"Protein Shake + Oats",desc:"1 scoop whey + 300ml LF milk + 50g oats. Fast exception.",pKcal:380,pPro:35,highlight:true},
+  ]},
+  { day:"Thu", gymDay:false, meals:[
+    {time:"12:00 pm",label:"BREAK FAST",name:"Berry Protein Smoothie",desc:"210ml Arla LF milk · 136g Fage 0% yogurt · 28g Quaker oats · 30g PER4M whey · 100g frozen berries · 1 tsp honey · ½ tsp cinnamon. Blend 45s.",pKcal:430,pPro:42,highlight:false},
+    {time:"3:00 pm",label:"LUNCH",name:"Creamy Tomato Chicken Pasta",desc:"200g chicken in creamy tomato sauce (chopped tomatoes + LF cream cheese). Serve on 160g penne.",pKcal:590,pPro:48,highlight:false},
+    {time:"5:30 pm",label:"SNACK",name:"Greek Yogurt + Fruit + Honey",desc:"150g LF Greek yogurt + 1 tbsp honey + grapes, strawberries or pineapple.",pKcal:230,pPro:14,highlight:false},
+    {time:"7:30 pm",label:"DINNER",name:"Lean Beef Stir-Fry with Noodles",desc:"200g lean beef strips stir-fried with garlic, ginger, soy, sesame oil, peppers, broccoli, snap peas over 150g egg noodles. Done by 8 pm.",pKcal:520,pPro:44,highlight:false},
+  ]},
+  { day:"Fri", gymDay:true, meals:[
+    {time:"12:00 pm",label:"BREAK FAST",name:"Berry Protein Smoothie",desc:"210ml Arla LF milk · 136g Fage 0% yogurt · 28g Quaker oats · 30g PER4M whey · 100g frozen berries · 1 tsp honey · ½ tsp cinnamon. Blend 45s.",pKcal:430,pPro:42,highlight:false},
+    {time:"3:00 pm",label:"LUNCH",name:"Prawn & Chorizo Pasta",desc:"150g king prawns + 50g chorizo + passata, garlic, chilli flakes, spinach. Serve on 160g penne.",pKcal:590,pPro:44,highlight:false},
+    {time:"5:30 pm",label:"SNACK",name:"Greek Yogurt + Fruit + Honey",desc:"150g LF Greek yogurt + 1 tbsp honey + grapes, strawberries or pineapple.",pKcal:230,pPro:14,highlight:false},
+    {time:"7:00 pm",label:"PRE-WORKOUT ★",name:"BBQ Chicken & Rice with Roasted Veg",desc:"200g chicken in BBQ sauce baked 200°C 25 min. Roasted peppers, mushrooms, onion. 160g rice.",pKcal:640,pPro:46,highlight:true},
+    {time:"7:45 pm",label:"PRE-WO SNACK",name:"Protein Shake + Crackers or Fruit",desc:"1 scoop whey + 200ml LF milk + crackers or fruit. Finish by 7:55 pm.",pKcal:270,pPro:28,highlight:false},
+    {time:"~12:30 am",label:"POST-WORKOUT ★",name:"Protein Shake + Oats",desc:"1 scoop whey + 300ml LF milk + 50g oats. Fast exception.",pKcal:380,pPro:35,highlight:true},
+  ]},
+  { day:"Sat", gymDay:true, meals:[
+    {time:"12:00 pm",label:"BREAK FAST",name:"Berry Protein Smoothie",desc:"210ml Arla LF milk · 136g Fage 0% yogurt · 28g Quaker oats · 30g PER4M whey · 100g frozen berries · 1 tsp honey · ½ tsp cinnamon. Blend 45s.",pKcal:430,pPro:42,highlight:false},
+    {time:"3:00 pm",label:"LUNCH",name:"BBQ Chicken Rice Bowl",desc:"Batch-cooked BBQ chicken from Friday over 150g rice with sweetcorn and roasted peppers.",pKcal:570,pPro:46,highlight:false},
+    {time:"5:30 pm",label:"SNACK",name:"Greek Yogurt + Fruit + Honey",desc:"150g LF Greek yogurt + 1 tbsp honey + grapes, strawberries or pineapple.",pKcal:230,pPro:14,highlight:false},
+    {time:"7:00 pm",label:"PRE-WORKOUT ★",name:"Turkey Meatball Spaghetti",desc:"250g turkey mince meatballs baked 190°C 18 min, simmered in passata. Served on 160g spaghetti.",pKcal:680,pPro:50,highlight:true},
+    {time:"7:45 pm",label:"PRE-WO SNACK",name:"Protein Shake + Crackers or Fruit",desc:"1 scoop whey + 200ml LF milk + crackers or fruit. Finish by 7:55 pm.",pKcal:270,pPro:28,highlight:false},
+    {time:"~12:30 am",label:"POST-WORKOUT ★",name:"Protein Shake + Oats",desc:"1 scoop whey + 300ml LF milk + 50g oats. Fast exception.",pKcal:380,pPro:35,highlight:true},
+  ]},
+  { day:"Sun", gymDay:false, meals:[
+    {time:"12:00 pm",label:"BREAK FAST",name:"Berry Protein Smoothie",desc:"210ml Arla LF milk · 136g Fage 0% yogurt · 28g Quaker oats · 30g PER4M whey · 100g frozen berries · 1 tsp honey · ½ tsp cinnamon. Blend 45s.",pKcal:430,pPro:42,highlight:false},
+    {time:"3:00 pm",label:"LUNCH",name:"Lighter Roast Dinner",desc:"200g roast chicken, 200g roasted potatoes, tenderstem broccoli, carrots, green beans, light gravy.",pKcal:580,pPro:46,highlight:false},
+    {time:"5:30 pm",label:"SNACK",name:"Greek Yogurt + Fruit + Honey",desc:"150g LF Greek yogurt + 1 tbsp honey + grapes, strawberries or pineapple.",pKcal:230,pPro:14,highlight:false},
+    {time:"7:30 pm",label:"DINNER",name:"Baked Cod with Herb Crust",desc:"200g cod with breadcrumb, lemon zest, parsley & olive oil crust. Bake 200°C 18 min. Mashed sweet potato + steamed veg. Done by 8 pm.",pKcal:510,pPro:44,highlight:false},
+  ]},
+];
+
+// ── COMPONENTS ─────────────────────────────────────────────────────────────
+function ProgressRing({ pct, size=52, stroke=4, color, bg=C.raised, children }) {
+  const r=(size-stroke*2)/2, circ=2*Math.PI*r;
+  return (
+    <div style={{position:"relative",width:size,height:size,flexShrink:0}}>
+      <svg width={size} height={size} style={{transform:"rotate(-90deg)",display:"block"}}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={bg} strokeWidth={stroke}/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+          strokeDasharray={circ} strokeDashoffset={circ-(pct/100)*circ} strokeLinecap="round"
+          style={{transition:"stroke-dashoffset 0.45s cubic-bezier(.4,0,.2,1)"}}/>
+      </svg>
+      <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function MacroBar({ label, value, target, color, unit }) {
+  const pct=Math.min((value/target)*100,100);
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+        <span style={{fontFamily:mono,fontSize:8,color:C.slate3,letterSpacing:1}}>{label}</span>
+        <span style={{fontFamily:mono,fontSize:9}}>
+          <span style={{color:C.slate2}}>{value}</span>
+          <span style={{color:C.slate4}}>/{target}{unit}</span>
+        </span>
+      </div>
+      <div style={{height:3,background:C.border,borderRadius:2}}>
+        <div style={{height:"100%",width:`${pct}%`,borderRadius:2,background:color,
+          boxShadow:pct>10?`0 0 6px ${color}55`:"none",transition:"width 0.5s"}}/>
+      </div>
+    </div>
+  );
+}
+
+const Tick = ({size=9}) => (
+  <svg width={size} height={size} viewBox="0 0 12 12" fill="none">
+    <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+function WeightModal({ current, onConfirm, onClose }) {
+  const [val, setVal] = useState(String(current));
+  const num = parseFloat(val);
+  const valid = !isNaN(num) && num >= 60 && num <= 200;
+  const diff = valid ? +(num - current).toFixed(1) : 0;
+  const macros = valid ? calcMacros(num) : null;
+  return (
+    <div style={{position:"fixed",inset:0,background:"#000000CC",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:1000}} onClick={onClose}>
+      <div style={{width:"100%",maxWidth:480,background:C.surface,borderRadius:"16px 16px 0 0",padding:"22px 18px 40px",border:`1px solid ${C.border}`,paddingBottom:`calc(40px + env(safe-area-inset-bottom))`}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+          <div>
+            <div style={{fontFamily:ff,fontSize:16,fontWeight:800,color:C.slate1}}>Update Weight</div>
+            <div style={{fontFamily:mono,fontSize:9,color:C.slate3,marginTop:2}}>Macros recalculate automatically</div>
+          </div>
+          <button onClick={onClose} style={{padding:"4px 10px",background:C.raised,border:`1px solid ${C.border}`,borderRadius:6,fontFamily:mono,fontSize:11,color:C.slate3}}>✕</button>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,justifyContent:"center"}}>
+          <button onClick={()=>setVal(v=>{const n=parseFloat(v)||current;return String(+(n-0.5).toFixed(1));})}
+            style={{width:44,height:44,borderRadius:10,background:C.raised,border:`1px solid ${C.border}`,fontFamily:ff,fontSize:22,color:C.slate2}}>−</button>
+          <div style={{position:"relative",textAlign:"center"}}>
+            <input type="number" inputMode="decimal" value={val} onChange={e=>setVal(e.target.value)}
+              style={{width:120,background:C.raised,border:`2px solid ${valid?C.orange+"88":C.border}`,borderRadius:10,
+                padding:"12px 10px",fontFamily:ff,fontSize:32,fontWeight:900,color:valid?C.orange:C.slate4,
+                textAlign:"center",outline:"none"}}/>
+            <span style={{position:"absolute",right:12,bottom:12,fontFamily:mono,fontSize:11,color:C.slate3}}>kg</span>
+          </div>
+          <button onClick={()=>setVal(v=>{const n=parseFloat(v)||current;return String(+(n+0.5).toFixed(1));})}
+            style={{width:44,height:44,borderRadius:10,background:C.raised,border:`1px solid ${C.border}`,fontFamily:ff,fontSize:22,color:C.slate2}}>+</button>
+        </div>
+        {valid && diff !== 0 && (
+          <div style={{textAlign:"center",marginBottom:14}}>
+            <span style={{fontFamily:mono,fontSize:11,color:diff<0?C.green:C.red,fontWeight:600}}>
+              {diff>0?"+":""}{diff} kg {diff<0?"lost 💪":"gained"}
+            </span>
+          </div>
+        )}
+        {valid && macros && (
+          <div style={{background:C.raised,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:16}}>
+            <div style={{fontFamily:mono,fontSize:7.5,letterSpacing:2,color:C.slate4,marginBottom:10}}>RECALCULATED MACROS</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:6}}>
+              {[{l:"CALORIES",v:`${macros.calories}`,u:"kcal",c:C.orange},{l:"PROTEIN",v:`${macros.protein}g`,u:"",c:C.green},{l:"CARBS",v:`${macros.carbs}g`,u:"",c:C.pull},{l:"FATS",v:`${macros.fats}g`,u:"",c:C.gold}].map((s,i)=>(
+                <div key={i} style={{textAlign:"center",background:C.surface,borderRadius:7,padding:"8px 4px"}}>
+                  <div style={{fontFamily:mono,fontSize:6.5,color:C.slate4,marginBottom:3}}>{s.l}</div>
+                  <div style={{fontFamily:ff,fontWeight:800,fontSize:13,color:s.c,lineHeight:1}}>{s.v}</div>
+                  {s.u&&<div style={{fontFamily:mono,fontSize:7,color:C.slate4,marginTop:1}}>{s.u}</div>}
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:8,fontFamily:mono,fontSize:8,color:C.slate4,textAlign:"center"}}>TDEE ~{macros.tdee} kcal · deficit ~{macros.deficit} kcal</div>
+          </div>
+        )}
+        <button onClick={()=>{if(valid)onConfirm(num);}} style={{width:"100%",padding:"14px",borderRadius:10,background:valid?C.orange+"22":"transparent",border:`1px solid ${valid?C.orange+"66":C.border}`,fontFamily:ff,fontSize:14,fontWeight:700,color:valid?C.orange:C.slate4,transition:"all 0.15s"}}>
+          {valid?`Confirm — ${num} kg`:"Enter a valid weight"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function KgModal({ exercise, setIdx, current, onSave, onClose, color }) {
+  const [val,setVal]=useState(current||"");
+  const opts=["BW","5","7.5","10","12.5","15","17.5","20","22.5","25","27.5","30","32.5","35","40","45","50","55","60","65","70","80","90","100","110","120"];
+  return (
+    <div style={{position:"fixed",inset:0,background:"#000000CC",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:1000}} onClick={onClose}>
+      <div style={{width:"100%",maxWidth:480,background:C.surface,borderRadius:"16px 16px 0 0",padding:"20px 16px",paddingBottom:`calc(32px + env(safe-area-inset-bottom))`,border:`1px solid ${C.border}`}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div>
+            <div style={{fontFamily:ff,fontSize:14,fontWeight:700,color:C.slate1}}>{exercise}</div>
+            <div style={{fontFamily:mono,fontSize:9,color:C.slate3,marginTop:2}}>Set {setIdx+1} — enter weight</div>
+          </div>
+          <button onClick={onClose} style={{padding:"4px 8px",background:C.raised,border:`1px solid ${C.border}`,borderRadius:6,fontFamily:mono,fontSize:11,color:C.slate3}}>✕</button>
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
+          <input type="number" inputMode="decimal" placeholder="kg" value={val} onChange={e=>setVal(e.target.value)}
+            style={{flex:1,background:C.raised,border:`1px solid ${color}55`,borderRadius:8,padding:"12px 14px",fontFamily:ff,fontSize:22,fontWeight:700,color,outline:"none",textAlign:"center"}}/>
+          <span style={{fontFamily:mono,fontSize:12,color:C.slate3}}>kg</span>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
+          {opts.map(o=>(
+            <button key={o} onClick={()=>setVal(o)} style={{padding:"6px 10px",borderRadius:6,fontFamily:mono,fontSize:10,background:val===o?color+"22":C.raised,border:`1px solid ${val===o?color+"66":C.border}`,color:val===o?color:C.slate3}}>
+              {o}{o!=="BW"?"kg":""}
+            </button>
+          ))}
+        </div>
+        <button onClick={()=>{if(val)onSave(val);}} style={{width:"100%",padding:"13px",borderRadius:9,background:val?color+"22":"transparent",border:`1px solid ${val?color+"55":C.border}`,fontFamily:ff,fontSize:13,fontWeight:700,color:val?color:C.slate4,transition:"all 0.15s"}}>
+          Save {val?`${val}kg`:""}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══ MAIN APP ═══════════════════════════════════════════════════════════════
+function App() {
+  const [currentWeight, setCurrentWeight] = usePersist("rk_weight", 118);
+  const [macros, setMacros] = useState(() => calcMacros(118));
+  const [showWeightModal, setShowWeightModal] = useState(false);
+  const [screen, setScreen] = usePersist("rk_screen", "overview");
+  const [activeDay, setActiveDay] = usePersist("rk_activeDay", 0);
+  const [tab, setTab] = usePersist("rk_tab", "workout");
+  const [kgLog, setKgLog] = usePersist("rk_kgLog", {});
+  const [bestKg, setBestKg] = usePersist("rk_bestKg", {});
+  const [setDone, setSetDone] = usePersist("rk_setDone", {});
+  const [mealDone, setMealDone] = usePersist("rk_mealDone", {});
+  const [modal, setModal] = useState(null);
+  const [expandedMeal, setExpandedMeal] = useState(null);
+
+  useEffect(() => { setMacros(calcMacros(currentWeight)); }, [currentWeight]);
+
+  const confirmWeight = (w) => { setCurrentWeight(w); setShowWeightModal(false); };
+
+  const saveKg = (kg) => {
+    const {dayIdx,exIdx,setIdx}=modal;
+    const logKey=`${dayIdx}-${exIdx}-${setIdx}`;
+    const bestKey=`${dayIdx}-${exIdx}`;
+    setKgLog(p=>({...p,[logKey]:kg}));
+    const num=parseFloat(kg);
+    if(!isNaN(num)) setBestKg(p=>{const prev=parseFloat(p[bestKey]||0);return num>prev?{...p,[bestKey]:kg}:p;});
+    setModal(null);
+  };
+
+  const countDay=(di)=>{
+    const wd=WORKOUT_DAYS[di];
+    if(!wd.exercises.length) return {t:0,c:0};
+    let t=0,co=0;
+    wd.exercises.forEach((ex,ei)=>ex.sets.forEach((_,si)=>{t++;if(setDone[`${di}-${ei}-${si}`])co++;}));
+    return {t,c:co};
+  };
+
+  const totalDone=Object.values(setDone).filter(Boolean).length;
+  const totalAll=WORKOUT_DAYS.reduce((a,_,di)=>a+countDay(di).t,0);
+  const weekPct=totalAll>0?Math.round((totalDone/totalAll)*100):0;
+
+  const START_W=133, GOAL_W=100;
+  const lostKg=START_W-currentWeight;
+  const totalJ=START_W-GOAL_W;
+  const weightPct=Math.max(0,Math.min(100,Math.round((lostKg/totalJ)*100)));
+  const toGo=Math.max(0,+(currentWeight-GOAL_W).toFixed(1));
+
+  const wDay=WORKOUT_DAYS[activeDay];
+  const mDay=MEAL_TEMPLATES[activeDay];
+  const dc=DAY_COLOR[wDay.day];
+  const isRest=wDay.label==="REST";
+  const scaleFactor=macros.calories/2500;
+  const mealTotal={kcal:Math.round(mDay.meals.reduce((a,m)=>a+m.pKcal,0)*scaleFactor),protein:macros.protein};
+
+  const openDay=(di)=>{setActiveDay(di);setTab("workout");setExpandedMeal(null);setScreen("day");};
+
+  return (
+    <div style={{minHeight:"100vh",background:C.bg,color:C.slate1,fontFamily:ff,paddingTop:"env(safe-area-inset-top)"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500&display=swap');
+        @keyframes fi{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes sl{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+      `}</style>
+
+      {/* HEADER */}
+      <div style={{padding:"16px 16px 14px",background:`linear-gradient(180deg,${C.surface},${C.bg})`,borderBottom:`1px solid ${C.borderSub}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+              <div style={{width:22,height:22,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,background:`linear-gradient(135deg,${C.orange},#C44400)`,boxShadow:`0 2px 8px ${C.orange}44`}}>⚡</div>
+              <span style={{fontFamily:mono,fontSize:7,letterSpacing:3,color:C.slate4}}>RK'S ROAD TO 100KG</span>
+            </div>
+            <h1 style={{fontFamily:ff,fontSize:21,fontWeight:900,letterSpacing:-0.8,lineHeight:1.05}}>
+              Cut to <span style={{color:C.green,textShadow:`0 0 20px ${C.green}44`}}>100 kg</span>
+            </h1>
+            <p style={{fontFamily:mono,fontSize:8,color:C.slate4,marginTop:3}}>Push · Pull · Legs · Upper · Lower · 16:8 · 11 pm</p>
+          </div>
+          <ProgressRing pct={weekPct} size={58} stroke={4} color={C.orange}>
+            <span style={{fontFamily:ff,fontSize:15,fontWeight:800,color:C.orange,lineHeight:1}}>{weekPct}%</span>
+            <span style={{fontFamily:mono,fontSize:6,color:C.slate4,letterSpacing:1}}>WEEK</span>
+          </ProgressRing>
+        </div>
+
+        {/* Weight journey */}
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 13px",marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:9}}>
+            <span style={{fontFamily:mono,fontSize:7,letterSpacing:2,color:C.slate4}}>WEIGHT JOURNEY</span>
+            <span style={{fontFamily:ff,fontSize:11,fontWeight:600,color:C.green}}>−{lostKg} kg lost · {toGo} kg to go</span>
+          </div>
+          <div style={{position:"relative",height:6,background:C.raised,borderRadius:3,marginBottom:12}}>
+            <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${weightPct}%`,borderRadius:3,background:`linear-gradient(90deg,${C.green}CC,${C.green})`,boxShadow:`0 0 8px ${C.green}55`,transition:"width 0.5s"}}/>
+            <div style={{position:"absolute",top:"50%",left:`${weightPct}%`,transform:"translate(-50%,-50%)",width:13,height:13,borderRadius:"50%",background:C.orange,border:`2px solid ${C.bg}`,boxShadow:`0 0 10px ${C.orange}88`,transition:"left 0.5s"}}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+            <div><div style={{fontFamily:mono,fontSize:10,color:C.slate3}}>133 kg</div><div style={{fontFamily:mono,fontSize:7,color:C.slate4}}>start</div></div>
+            <button onClick={()=>setShowWeightModal(true)} style={{textAlign:"center",padding:"8px 14px",borderRadius:9,background:C.orange+"18",border:`1px solid ${C.orange}44`}}>
+              <div style={{fontFamily:ff,fontSize:18,fontWeight:900,color:C.orange,lineHeight:1}}>{currentWeight} kg</div>
+              <div style={{fontFamily:mono,fontSize:7,color:C.orange+"99",marginTop:2}}>tap to update ✎</div>
+            </button>
+            <div style={{textAlign:"right"}}><div style={{fontFamily:mono,fontSize:10,color:C.green}}>100 kg</div><div style={{fontFamily:mono,fontSize:7,color:C.slate4}}>goal</div></div>
+          </div>
+        </div>
+
+        {/* Fast strip */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 11px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:7}}>
+          <span style={{fontFamily:mono,fontSize:7,letterSpacing:2,color:C.slate4}}>16:8 FAST</span>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontFamily:mono,fontSize:8,color:C.slate3}}>🚫 8 pm</span>
+            <div style={{width:20,height:1,background:C.border}}/>
+            <span style={{fontFamily:mono,fontSize:8,color:C.green}}>✓ 12 pm</span>
+          </div>
+          <span style={{fontFamily:mono,fontSize:7,color:C.slate4}}>gym shake excepted</span>
+        </div>
+      </div>
+
+      {/* OVERVIEW */}
+      {screen==="overview" && (
+        <div style={{padding:"14px 16px 100px",animation:"fi 0.25s ease"}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:6,marginBottom:14}}>
+            {[{l:"CALS",v:`${macros.calories}`,u:"kcal",c:C.orange},{l:"PROTEIN",v:`${macros.protein}g`,u:"",c:C.green},{l:"CARBS",v:`${macros.carbs}g`,u:"",c:C.pull},{l:"FATS",v:`${macros.fats}g`,u:"",c:C.gold}].map((s,i)=>(
+              <div key={i} style={{background:C.surface,borderRadius:8,border:`1px solid ${C.border}`,padding:"9px 5px",textAlign:"center"}}>
+                <div style={{fontFamily:mono,fontSize:6,color:C.slate4,letterSpacing:0.5,marginBottom:4}}>{s.l}</div>
+                <div style={{fontFamily:ff,fontWeight:800,fontSize:13,color:s.c,lineHeight:1}}>{s.v}</div>
+                {s.u&&<div style={{fontFamily:mono,fontSize:7,color:C.slate4,marginTop:2}}>{s.u}</div>}
+              </div>
+            ))}
+          </div>
+          <div style={{marginBottom:12,padding:"7px 10px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:7,display:"flex",justifyContent:"space-between"}}>
+            <span style={{fontFamily:mono,fontSize:8,color:C.slate3}}>TDEE ~{macros.tdee} kcal</span>
+            <span style={{fontFamily:mono,fontSize:8,color:C.slate3}}>deficit ~{macros.deficit} kcal</span>
+            <span style={{fontFamily:mono,fontSize:8,color:C.green}}>~0.5–0.75 kg/wk</span>
+          </div>
+          <div style={{fontFamily:mono,fontSize:7,letterSpacing:2.5,color:C.slate4,marginBottom:9}}>THIS WEEK</div>
+          {WORKOUT_DAYS.map((d,di)=>{
+            const {t,c}=countDay(di);
+            const pct=t>0?Math.round((c/t)*100):0;
+            const dColor=DAY_COLOR[d.day],dRest=d.label==="REST",allDone=c===t&&t>0;
+            return (
+              <button key={di} onClick={()=>openDay(di)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"11px 12px 11px 10px",marginBottom:6,background:C.surface,borderRadius:8,textAlign:"left",border:`1px solid ${allDone&&!dRest?dColor+"44":C.border}`,borderLeft:`3px solid ${dRest?C.raised:dColor}`}}>
+                <ProgressRing pct={pct} size={38} stroke={3} color={dRest?C.slate4:dColor}>
+                  <span style={{fontFamily:mono,fontSize:7,fontWeight:600,color:dRest?C.slate4:dColor}}>{d.day}</span>
+                </ProgressRing>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:ff,fontSize:13,fontWeight:700,color:dRest?C.slate3:C.slate1,marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.title}</div>
+                  <div style={{display:"flex",gap:5}}>
+                    <span style={{fontFamily:mono,fontSize:6.5,padding:"2px 6px",borderRadius:3,background:dRest?C.raised:dColor+"18",color:dRest?C.slate4:dColor}}>{d.label}</span>
+                    <span style={{fontFamily:mono,fontSize:7,color:C.slate4}}>{d.exercises.length>0?`${d.exercises.length} exercises`:"rest"}</span>
+                  </div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  {allDone&&!dRest?<div style={{fontFamily:mono,fontSize:8,color:C.green}}>✓ DONE</div>:<div style={{fontFamily:mono,fontSize:8,color:C.slate4}}>{t>0?`${c}/${t} sets`:""}</div>}
+                  <div style={{fontFamily:mono,fontSize:10,color:C.slate4,marginTop:2}}>›</div>
+                </div>
+              </button>
+            );
+          })}
+          <div style={{marginTop:10,background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"13px 14px"}}>
+            <div style={{fontFamily:mono,fontSize:7,letterSpacing:2.5,color:C.slate4,marginBottom:10}}>PROTOCOL</div>
+            {[
+              {l:"Deficit", t:`~${macros.deficit} kcal below TDEE (~${macros.tdee}). 0.5–0.75 kg/week target.`},
+              {l:"Protein", t:`~${macros.protein}g/day (1.8g per kg). Never skip post-workout shake.`},
+              {l:"Fasting",  t:"16:8 — stop at 8 pm, break at 12 pm. Post-gym shake ~12:30 am excepted."},
+              {l:"Training", t:"Heavy 2×6–8, accessories 3×8–12. Finish every session with 30-min incline treadmill."},
+              {l:"Creatine", t:"5g monohydrate post-workout daily."},
+            ].map((tip,i)=>(
+              <div key={i} style={{display:"flex",gap:8,marginBottom:8,lineHeight:1.55}}>
+                <span style={{fontFamily:ff,fontSize:10,fontWeight:700,color:C.orange,flexShrink:0,width:58}}>{tip.l}</span>
+                <span style={{fontFamily:mono,fontSize:9,color:C.slate3}}>{tip.t}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* DAY SCREEN */}
+      {screen==="day" && (
+        <div style={{animation:"sl 0.22s cubic-bezier(.4,0,.2,1)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:5,padding:"10px 16px 0",overflowX:"auto"}}>
+            <button onClick={()=>setScreen("overview")} style={{flexShrink:0,padding:"6px 10px",borderRadius:6,background:C.surface,border:`1px solid ${C.border}`,fontFamily:mono,fontSize:7.5,color:C.slate3,letterSpacing:1}}>← BACK</button>
+            {WORKOUT_DAYS.map((d,i)=>{
+              const a=activeDay===i,dc_=DAY_COLOR[d.day],r_=d.label==="REST";
+              return <button key={i} onClick={()=>{setActiveDay(i);setExpandedMeal(null);}} style={{flexShrink:0,padding:"6px 10px",borderRadius:6,background:a?dc_+"18":C.surface,border:`1px solid ${a?dc_+"55":C.border}`,fontFamily:mono,fontSize:7.5,fontWeight:a?600:400,color:a?(r_?C.slate3:dc_):C.slate4}}>{d.day}</button>;
+            })}
+          </div>
+
+          <div style={{margin:"10px 16px 0",padding:"12px 14px",background:isRest?C.surface:dc+"0C",border:`1px solid ${isRest?C.border:dc+"30"}`,borderRadius:9}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
+                  <span style={{fontFamily:mono,fontSize:7,padding:"2px 7px",borderRadius:4,background:isRest?C.raised:dc+"20",color:isRest?C.slate4:dc,letterSpacing:1}}>{wDay.label}</span>
+                  <span style={{fontFamily:mono,fontSize:8,color:C.slate4}}>11 pm</span>
+                </div>
+                <div style={{fontFamily:ff,fontSize:15,fontWeight:700,color:isRest?C.slate3:C.slate1}}>{wDay.title}</div>
+              </div>
+              {(()=>{const {t,c}=countDay(activeDay);const p=t>0?Math.round((c/t)*100):0;return(
+                <ProgressRing pct={p} size={44} stroke={3} color={isRest?C.slate4:dc}>
+                  <span style={{fontFamily:mono,fontSize:9,fontWeight:600,color:isRest?C.slate4:dc}}>{p}%</span>
+                </ProgressRing>
+              );})()}
+            </div>
+          </div>
+
+          <div style={{display:"flex",gap:5,padding:"10px 16px 0"}}>
+            {[["workout","Workout"],["meals","Meals"]].map(([v,lbl])=>(
+              <button key={v} onClick={()=>setTab(v)} style={{flex:1,padding:"8px 0",borderRadius:6,background:tab===v?C.raised:"transparent",border:`1px solid ${tab===v?C.border:"transparent"}`,color:tab===v?C.slate1:C.slate4,fontFamily:mono,fontSize:8,letterSpacing:1.5,textTransform:"uppercase"}}>{lbl}</button>
+            ))}
+          </div>
+
+          {/* WORKOUT */}
+          {tab==="workout" && (
+            <div style={{padding:"10px 16px 100px",animation:"fi 0.2s ease"}}>
+              {wDay.warmup&&(
+                <div style={{marginBottom:10,padding:"9px 12px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8}}>
+                  <div style={{fontFamily:mono,fontSize:7,letterSpacing:1.5,color:C.slate4,marginBottom:4}}>WARM-UP</div>
+                  <div style={{fontFamily:mono,fontSize:9.5,color:C.slate3,lineHeight:1.5}}>{wDay.warmup}</div>
+                </div>
+              )}
+              {isRest&&(
+                <div style={{padding:"16px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,textAlign:"center"}}>
+                  <div style={{fontFamily:ff,fontSize:16,fontWeight:700,color:C.slate3,marginBottom:6}}>Rest Day</div>
+                  <div style={{fontFamily:mono,fontSize:9.5,color:C.slate4,lineHeight:1.6}}>{wDay.restNote}</div>
+                </div>
+              )}
+              {wDay.exercises.map((ex,ei)=>{
+                const bestKey=`${activeDay}-${ei}`;
+                const best=bestKg[bestKey];
+                const isHeavy=ex.sets[0]?.reps==="6-8"||ex.sets[0]?.reps==="6-8 each";
+                return (
+                  <div key={ei} style={{marginBottom:12,background:C.surface,borderRadius:10,border:`1px solid ${isHeavy?dc+"30":C.border}`,overflow:"hidden"}}>
+                    <div style={{padding:"11px 14px 8px",borderBottom:`1px solid ${C.borderSub}`,display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{width:34,height:34,borderRadius:"50%",background:isHeavy?dc+"18":C.raised,border:`1px solid ${isHeavy?dc+"33":C.border}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                        <span style={{fontSize:14}}>{ei%7===0?"🏋️":ei%7===1?"💪":ei%7===2?"🦵":ei%7===3?"🔄":ei%7===4?"⬆️":ei%7===5?"🔁":"⬇️"}</span>
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontFamily:ff,fontSize:14,fontWeight:700,color:isHeavy?dc:C.slate1}}>{ex.name}</div>
+                        {best&&<div style={{fontFamily:mono,fontSize:8,color:C.green,marginTop:1}}>best: {best}kg</div>}
+                      </div>
+                      <div style={{fontFamily:mono,fontSize:7,color:C.slate4,textAlign:"right"}}>
+                        <div>{isHeavy?"HEAVY":"ACCESSORY"}</div>
+                        <div style={{color:isHeavy?dc:C.slate3,marginTop:1}}>{ex.sets.length} sets</div>
+                      </div>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"36px 1fr 1fr 36px",padding:"6px 14px",borderBottom:`1px solid ${C.borderSub}`}}>
+                      {["SET","KG","REPS",""].map((h,hi)=>(
+                        <div key={hi} style={{fontFamily:mono,fontSize:8,color:C.slate4,letterSpacing:0.5,textAlign:hi===0?"left":"center"}}>{h}</div>
+                      ))}
+                    </div>
+                    {ex.sets.map((s,si)=>{
+                      const logKey=`${activeDay}-${ei}-${si}`;
+                      const logged=kgLog[logKey];
+                      const isBest=logged&&bestKg[bestKey]&&logged===bestKg[bestKey];
+                      const ticked=setDone[logKey];
+                      return (
+                        <div key={si} style={{display:"grid",gridTemplateColumns:"36px 1fr 1fr 36px",padding:"11px 14px",background:ticked?"#0F1A0F":si%2===0?C.raised+"88":C.surface,borderBottom:si<ex.sets.length-1?`1px solid ${C.borderSub}`:"none",opacity:ticked?0.5:1,transition:"all 0.2s"}}>
+                          <div style={{fontFamily:mono,fontSize:15,fontWeight:500,color:ticked?C.green:logged?dc:C.slate3,display:"flex",alignItems:"center"}}>{si+1}</div>
+                          <button onClick={()=>setModal({dayIdx:activeDay,exIdx:ei,setIdx:si,name:ex.name})} style={{textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"2px 0"}}>
+                            {logged?<span style={{fontFamily:ff,fontSize:18,fontWeight:800,color:isBest?C.green:dc}}>{logged}</span>:<span style={{fontFamily:mono,fontSize:14,color:C.slate4}}>— kg</span>}
+                            {isBest&&<span style={{fontFamily:mono,fontSize:7,color:C.green,letterSpacing:0.5}}>BEST</span>}
+                          </button>
+                          <div style={{textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            <span style={{fontFamily:mono,fontSize:13,color:ticked?C.green:logged?C.slate2:C.slate3,textDecoration:ticked?"line-through":"none"}}>{s.reps}</span>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            <button onClick={()=>setSetDone(p=>({...p,[logKey]:!p[logKey]}))} style={{width:22,height:22,borderRadius:4,border:`2px solid ${ticked?C.green:C.border}`,background:ticked?C.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:C.bg,transition:"all 0.15s"}}>
+                              {ticked&&<Tick/>}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+              {wDay.finisher&&(
+                <div style={{padding:"11px 13px",background:C.goldDim,border:`1px solid ${C.goldBorder}`,borderRadius:9,marginBottom:10}}>
+                  <div style={{fontFamily:mono,fontSize:7.5,color:C.gold,letterSpacing:1.5,marginBottom:4}}>FINISHER</div>
+                  <div style={{fontFamily:mono,fontSize:10,color:"#E8C87A",lineHeight:1.5}}>{wDay.finisher}</div>
+                </div>
+              )}
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>activeDay>0?setActiveDay(a=>a-1):setScreen("overview")} style={{flex:1,padding:"11px",borderRadius:7,background:C.surface,border:`1px solid ${C.border}`,fontFamily:mono,fontSize:8,color:C.slate3,letterSpacing:1}}>← PREV</button>
+                <button onClick={()=>activeDay<6?setActiveDay(a=>a+1):setScreen("overview")} style={{flex:1,padding:"11px",borderRadius:7,background:isRest?C.surface:dc+"18",border:`1px solid ${isRest?C.border:dc+"40"}`,fontFamily:mono,fontSize:8,color:isRest?C.slate4:dc,letterSpacing:1}}>NEXT →</button>
+              </div>
+            </div>
+          )}
+
+          {/* MEALS */}
+          {tab==="meals" && (
+            <div style={{padding:"10px 16px 100px",animation:"fi 0.2s ease"}}>
+              <div style={{display:"flex",justifyContent:"space-between",padding:"9px 12px",marginBottom:9,background:C.surface,border:`1px solid ${C.border}`,borderRadius:8}}>
+                <div>
+                  <div style={{fontFamily:mono,fontSize:7,color:C.slate4,letterSpacing:1,marginBottom:2}}>EATING WINDOW</div>
+                  <div style={{fontFamily:mono,fontSize:9,color:C.slate1}}>12:00 pm → {mDay.gymDay?"~12:30 am ★":"8:00 pm"}</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontFamily:mono,fontSize:7,color:C.slate4,marginBottom:2}}>{mDay.gymDay?"GYM DAY":"REST DAY"}</div>
+                  <div style={{fontFamily:mono,fontSize:9,color:mDay.gymDay?dc:C.slate3}}>{mDay.meals.length} meals</div>
+                </div>
+              </div>
+              <div style={{padding:"11px 13px",marginBottom:9,background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+                  <div style={{fontFamily:mono,fontSize:7,letterSpacing:2.5,color:C.slate4}}>DAILY TARGETS</div>
+                  <div style={{fontFamily:mono,fontSize:7,color:C.orange+"88"}}>for {currentWeight} kg</div>
+                </div>
+                <MacroBar label="CALORIES" value={mealTotal.kcal} target={macros.calories} color={C.orange} unit=" kcal"/>
+                <MacroBar label="PROTEIN" value={mealTotal.protein} target={macros.protein} color={C.green} unit="g"/>
+              </div>
+              {mDay.meals.map((meal,i)=>{
+                const isHL=meal.highlight,exp=expandedMeal===i;
+                const scaledKcal=Math.round(meal.pKcal*scaleFactor);
+                const mKey=`${activeDay}-${i}`;
+                const mTicked=mealDone[mKey];
+                return (
+                  <div key={i} style={{marginBottom:6,borderRadius:8,overflow:"hidden",background:mTicked?"#0F1A0F":isHL?C.goldDim:C.surface,border:`1px solid ${mTicked?C.green+"44":isHL?C.goldBorder:C.border}`,borderLeft:`3px solid ${mTicked?C.green:isHL?C.gold:(mDay.gymDay?dc+"88":C.slate4+"55")}`,opacity:mTicked?0.55:1,transition:"all 0.2s"}}>
+                    <div style={{padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                      <button onClick={()=>setExpandedMeal(exp?null:i)} style={{flex:1,paddingRight:10,minWidth:0,textAlign:"left"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                          <span style={{fontFamily:mono,fontSize:7.5,color:isHL?C.gold:C.slate4}}>{meal.time}</span>
+                          <span style={{fontFamily:mono,fontSize:6.5,padding:"1px 5px",borderRadius:3,background:isHL?C.gold+"25":C.raised,color:isHL?C.gold:C.slate4}}>{meal.label}</span>
+                        </div>
+                        <div style={{fontFamily:ff,fontSize:12.5,fontWeight:600,color:mTicked?C.green:isHL?"#E8C87A":C.slate1,lineHeight:1.25,textDecoration:mTicked?"line-through":"none"}}>{meal.name}</div>
+                      </button>
+                      <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                        <div style={{textAlign:"right"}}>
+                          <div style={{fontFamily:mono,fontSize:10,color:isHL?C.gold:C.slate2}}>{scaledKcal}</div>
+                          <div style={{fontFamily:mono,fontSize:6.5,color:C.slate4,marginBottom:3}}>kcal</div>
+                          <div style={{fontFamily:mono,fontSize:9,color:C.green}}>{meal.pPro}g</div>
+                        </div>
+                        <button onClick={()=>setMealDone(p=>({...p,[mKey]:!p[mKey]}))} style={{width:24,height:24,borderRadius:5,border:`2px solid ${mTicked?C.green:C.border}`,background:mTicked?C.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:C.bg,transition:"all 0.15s"}}>
+                          {mTicked&&<Tick size={10}/>}
+                        </button>
+                      </div>
+                    </div>
+                    {exp&&<div style={{padding:"0 12px 11px",borderTop:`1px solid ${isHL?C.goldBorder:C.borderSub}`}}>
+                      <p style={{fontFamily:mono,fontSize:9.5,color:C.slate3,lineHeight:1.65,paddingTop:9}}>{meal.desc}</p>
+                    </div>}
+                  </div>
+                );
+              })}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 14px",background:C.raised,border:`1px solid ${C.border}`,borderRadius:8}}>
+                <span style={{fontFamily:mono,fontSize:7,letterSpacing:2,color:C.slate4}}>DAY TOTAL</span>
+                <div style={{display:"flex",gap:16,alignItems:"baseline"}}>
+                  <span style={{fontFamily:ff,fontWeight:800,fontSize:14,color:C.orange}}>{mealTotal.kcal} <span style={{fontSize:9,fontWeight:400,color:C.slate4}}>kcal</span></span>
+                  <span style={{fontFamily:ff,fontWeight:800,fontSize:14,color:C.green}}>{mealTotal.protein}g <span style={{fontSize:9,fontWeight:400,color:C.slate4}}>protein</span></span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showWeightModal&&<WeightModal current={currentWeight} onConfirm={confirmWeight} onClose={()=>setShowWeightModal(false)}/>}
+      {modal&&<KgModal exercise={modal.name} setIdx={modal.setIdx} current={kgLog[`${modal.dayIdx}-${modal.exIdx}-${modal.setIdx}`]} onSave={saveKg} onClose={()=>setModal(null)} color={DAY_COLOR[WORKOUT_DAYS[modal.dayIdx].day]}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('app')).render(<App/>);
+</script>
+
+<!-- Service Worker for offline use -->
+<script>
+if('serviceWorker' in navigator) {
+  const sw = `
+    const CACHE = 'rk100-v1';
+    const URLS = [location.href];
+    self.addEventListener('install', e => {
+      e.waitUntil(caches.open(CACHE).then(c => c.addAll(URLS)).then(() => self.skipWaiting()));
+    });
+    self.addEventListener('activate', e => {
+      e.waitUntil(clients.claim());
+    });
+    self.addEventListener('fetch', e => {
+      e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+        return res;
+      })));
+    });
+  `;
+  const blob = new Blob([sw], {type:'text/javascript'});
+  const url = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(url).then(() => URL.revokeObjectURL(url));
+}
+</script>
+</body>
+</html>
